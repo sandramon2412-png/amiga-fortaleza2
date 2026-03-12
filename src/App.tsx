@@ -175,10 +175,10 @@ export default function App() {
     setIsExporting(true);
     
     try {
-      const element = pdfRef.current;
+      const container = pdfRef.current;
       
       // Ensure all images are loaded
-      const images = Array.from(element.getElementsByTagName('img')) as HTMLImageElement[];
+      const images = Array.from(container.getElementsByTagName('img')) as HTMLImageElement[];
       await Promise.all(images.map(img => {
         if (img.complete) return Promise.resolve();
         return new Promise((resolve) => {
@@ -187,38 +187,54 @@ export default function App() {
         });
       }));
 
-      // Capture the entire container
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#fdfcf9',
-        logging: false,
-        allowTaint: true,
-      });
-      
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF('p', 'mm', 'a4');
-      
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const buffer = 15; // Increased safety buffer
+      const contentWidth = pdfWidth - (2 * margin);
+      const maxContentHeight = pdfHeight - (2 * margin) - buffer;
       
-      // Calculate the height of the image in PDF units
-      const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      let heightLeft = imgHeight;
-      let position = 0;
+      const sections = Array.from(container.querySelectorAll('[data-pdf-section]')) as HTMLElement[];
+      let currentY = margin;
 
-      // Add the first page
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
+      for (let i = 0; i < sections.length; i++) {
+        const section = sections[i];
+        const canvas = await html2canvas(section, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#fdfcf9',
+          logging: false,
+          allowTaint: true
+        });
+        
+        let sectionImgWidth = contentWidth;
+        let sectionImgHeight = (canvas.height * contentWidth) / canvas.width;
 
-      // Add subsequent pages if content overflows
-      while (heightLeft > 0) {
-        position -= pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
+        // If the section is taller than the available page height, scale it down
+        if (sectionImgHeight > maxContentHeight) {
+          sectionImgHeight = maxContentHeight;
+          sectionImgWidth = (canvas.width * sectionImgHeight) / canvas.height;
+        }
+
+        // Force page break after cover or if it doesn't fit
+        const isCover = i === 0;
+        if (i > 0 && (isCover || currentY + sectionImgHeight > pdfHeight - margin)) {
+          pdf.addPage();
+          currentY = margin;
+        }
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.90);
+        const xOffset = margin + (contentWidth - sectionImgWidth) / 2;
+        pdf.addImage(imgData, 'JPEG', xOffset, currentY, sectionImgWidth, sectionImgHeight);
+        
+        // If it's the cover, we usually want the next content on a new page
+        if (isCover) {
+          pdf.addPage();
+          currentY = margin;
+        } else {
+          currentY += sectionImgHeight + 10; // Increased gap
+        }
       }
 
       pdf.save(`Guia-${currentGuide.title.replace(/\s+/g, '-')}.pdf`);
@@ -742,17 +758,17 @@ export default function App() {
           className="pdf-safe-container"
           style={{ 
             backgroundColor: '#fdfcf9', 
-            padding: '60px', 
+            padding: '20px', 
             color: '#3a3a3a', 
-            width: '850px',
+            width: '920px', // Even wider to use more horizontal space
             fontFamily: 'serif'
           }}
         >
-          <div className="text-center mb-20">
-            <div style={{ marginBottom: '40px', borderRadius: '40px', overflow: 'hidden', height: '600px' }}>
+          <div data-pdf-section className="text-center mb-8" style={{ paddingBottom: '40px' }}>
+            <div style={{ marginBottom: '32px', borderRadius: '32px', overflow: 'hidden', width: '100%', aspectRatio: '16/9', backgroundColor: '#f4f1ea' }}>
               <img 
                 src={currentGuide.coverImageUrl} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -761,57 +777,56 @@ export default function App() {
               padding: '6px 20px', 
               border: '1px solid rgba(124, 106, 90, 0.2)', 
               borderRadius: '9999px', 
-              fontSize: '12px', 
+              fontSize: '14px', 
               textTransform: 'uppercase', 
-              letterSpacing: '0.3em', 
+              letterSpacing: '0.2em', 
               color: '#7c6a5a', 
-              marginBottom: '24px' 
+              marginBottom: '20px' 
             }}>{
               currentGuide.type === 'meditation' ? 'Guía de Meditación' : 
               currentGuide.type === 'tapping' ? 'Guía de Tapping' : 
               currentGuide.type === 'affirmations' ? 'Guía de Afirmaciones' : 
               'Guía de Gratitud'
             }</div>
-            <h1 style={{ fontSize: '56px', fontWeight: 'bold', marginBottom: '16px', color: '#3a3a3a' }}>{currentGuide.title}</h1>
-            <p style={{ fontSize: '20px', fontStyle: 'italic', color: 'rgba(124, 106, 90, 0.6)' }}>{currentGuide.subtitle}</p>
-            <div style={{ width: '80px', height: '1px', backgroundColor: 'rgba(124, 106, 90, 0.3)', margin: '48px auto 0' }}></div>
+            <h1 style={{ fontSize: '56px', fontWeight: 'bold', marginBottom: '16px', color: '#3a3a3a', lineHeight: '1.1' }}>{currentGuide.title}</h1>
+            <p style={{ fontSize: '24px', fontStyle: 'italic', color: 'rgba(124, 106, 90, 0.6)' }}>{currentGuide.subtitle}</p>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '80px' }}>
-            <div style={{ backgroundColor: '#f4f1ea', padding: '60px', borderRadius: '40px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            <div data-pdf-section style={{ backgroundColor: '#f4f1ea', padding: '40px', borderRadius: '32px' }}>
               {currentGuide.intro.imageUrl && (
-                <div style={{ marginBottom: '40px', textAlign: 'center' }}>
+                <div style={{ marginBottom: '30px', textAlign: 'center' }}>
                   <img 
                     src={currentGuide.intro.imageUrl} 
-                    style={{ maxWidth: '400px', width: '100%', height: 'auto', borderRadius: '32px' }} 
+                    style={{ maxWidth: '350px', width: '100%', height: 'auto', borderRadius: '24px' }} 
                     referrerPolicy="no-referrer"
                   />
                 </div>
               )}
-              <h2 style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '32px', color: '#3a3a3a' }}>{currentGuide.intro.title}</h2>
-              <div style={{ lineHeight: '1.8', fontSize: '20px', opacity: '0.8', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h2 style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '24px', color: '#3a3a3a' }}>{currentGuide.intro.title}</h2>
+              <div style={{ lineHeight: '1.8', fontSize: '18px', opacity: '0.8', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {currentGuide.intro.content.map((p, i) => <p key={i}>{p}</p>)}
               </div>
             </div>
 
             {currentGuide.type === 'tapping' && currentGuide.pointsInfo && (
-              <div style={{ padding: '60px', border: '1px solid rgba(124, 106, 90, 0.1)', borderRadius: '40px' }}>
-                <h2 style={{ fontSize: '42px', fontWeight: 'bold', marginBottom: '40px', color: '#3a3a3a' }}>Los Puntos de Tapping</h2>
+              <div data-pdf-section style={{ padding: '40px', border: '1px solid rgba(124, 106, 90, 0.1)', borderRadius: '32px' }}>
+                <h2 style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '30px', color: '#3a3a3a' }}>Los Puntos de Tapping</h2>
                 {currentGuide.pointsInfo.imageUrl && (
-                  <div style={{ marginBottom: '48px', textAlign: 'center' }}>
+                  <div style={{ marginBottom: '32px', textAlign: 'center' }}>
                     <img 
                       src={currentGuide.pointsInfo.imageUrl} 
-                      style={{ maxWidth: '500px', width: '100%', height: 'auto', borderRadius: '32px' }} 
+                      style={{ maxWidth: '400px', width: '100%', height: 'auto', borderRadius: '24px' }} 
                       referrerPolicy="no-referrer"
                     />
                   </div>
                 )}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   {currentGuide.pointsInfo.description.map((point, idx) => (
-                    <div key={idx} style={{ padding: '24px', border: '1px solid rgba(124, 106, 90, 0.1)', borderRadius: '24px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#7c6a5a' }}>{point.point}</span>
-                      <h4 style={{ fontSize: '18px', fontWeight: 'bold' }}>{point.label}</h4>
-                      <p style={{ fontSize: '14px', opacity: '0.6' }}>{point.detail}</p>
+                    <div key={idx} style={{ padding: '16px', border: '1px solid rgba(124, 106, 90, 0.1)', borderRadius: '16px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#7c6a5a' }}>{point.point}</span>
+                      <h4 style={{ fontSize: '14px', fontWeight: 'bold' }}>{point.label}</h4>
+                      <p style={{ fontSize: '12px', opacity: '0.6' }}>{point.detail}</p>
                     </div>
                   ))}
                 </div>
@@ -821,21 +836,21 @@ export default function App() {
             {currentGuide.type === 'affirmations' && currentGuide.affirmationCategories && (
               <>
                 {currentGuide.affirmationCategories.map((cat) => (
-                  <div key={cat.id} style={{ padding: '60px', border: '1px solid rgba(124, 106, 90, 0.1)', borderRadius: '40px' }}>
-                    <h2 style={{ fontSize: '42px', fontWeight: 'bold', marginBottom: '16px', color: '#3a3a3a' }}>{cat.title}</h2>
-                    <p style={{ fontSize: '20px', fontStyle: 'italic', color: '#7c6a5a', marginBottom: '40px' }}>{cat.description}</p>
+                  <div key={cat.id} data-pdf-section style={{ padding: '40px', border: '1px solid rgba(124, 106, 90, 0.1)', borderRadius: '32px' }}>
+                    <h2 style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '12px', color: '#3a3a3a' }}>{cat.title}</h2>
+                    <p style={{ fontSize: '16px', fontStyle: 'italic', color: '#7c6a5a', marginBottom: '30px' }}>{cat.description}</p>
                     {cat.imageUrl && (
-                      <div style={{ marginBottom: '48px', textAlign: 'center' }}>
+                      <div style={{ marginBottom: '32px', textAlign: 'center' }}>
                         <img 
                           src={cat.imageUrl} 
-                          style={{ maxWidth: '450px', width: '100%', height: 'auto', borderRadius: '32px' }} 
+                          style={{ maxWidth: '350px', width: '100%', height: 'auto', borderRadius: '24px' }} 
                           referrerPolicy="no-referrer"
                         />
                       </div>
                     )}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {cat.items.map((item, i) => (
-                        <div key={i} style={{ padding: '32px', backgroundColor: '#f4f1ea', borderRadius: '32px', fontSize: '24px', fontStyle: 'italic' }}>
+                        <div key={i} style={{ padding: '20px', backgroundColor: '#f4f1ea', borderRadius: '24px', fontSize: '18px', fontStyle: 'italic' }}>
                           "{item}"
                         </div>
                       ))}
@@ -846,65 +861,65 @@ export default function App() {
             )}
 
             {currentGuide.howToUse && (
-              <div style={{ padding: '60px', backgroundColor: '#f4f1ea', borderRadius: '40px' }}>
-                <h2 style={{ fontSize: '42px', fontWeight: 'bold', marginBottom: '32px', color: '#3a3a3a' }}>{currentGuide.howToUse.title}</h2>
-                <p style={{ fontSize: '20px', marginBottom: '40px' }}>{currentGuide.howToUse.intro}</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div data-pdf-section style={{ padding: '40px', backgroundColor: '#f4f1ea', borderRadius: '32px' }}>
+                <h2 style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '24px', color: '#3a3a3a' }}>{currentGuide.howToUse.title}</h2>
+                <p style={{ fontSize: '16px', marginBottom: '30px' }}>{currentGuide.howToUse.intro}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {currentGuide.howToUse.steps.map((step, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '20px' }}>
-                      <span style={{ fontWeight: 'bold', color: '#7c6a5a', fontSize: '20px' }}>{i + 1}.</span>
-                      <p style={{ fontSize: '20px' }}>{step}</p>
+                    <div key={i} style={{ display: 'flex', gap: '16px' }}>
+                      <span style={{ fontWeight: 'bold', color: '#7c6a5a', fontSize: '16px' }}>{i + 1}.</span>
+                      <p style={{ fontSize: '16px' }}>{step}</p>
                     </div>
                   ))}
                 </div>
-                <p style={{ marginTop: '40px', fontSize: '24px', fontStyle: 'italic', color: '#7c6a5a' }}>{currentGuide.howToUse.footer}</p>
+                <p style={{ marginTop: '30px', fontSize: '20px', fontStyle: 'italic', color: '#7c6a5a' }}>{currentGuide.howToUse.footer}</p>
               </div>
             )}
 
             {currentGuide.items?.map((item: any) => (
-              <div key={item.id} style={{ padding: '60px', border: '1px solid rgba(124, 106, 90, 0.1)', borderRadius: '40px' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '24px', marginBottom: '40px' }}>
-                  <span style={{ fontSize: '64px', fontWeight: '300', color: 'rgba(124, 106, 90, 0.2)' }}>{String(item.id).padStart(2, '0')}</span>
-                  <h2 style={{ fontSize: '48px', fontWeight: 'bold', color: '#3a3a3a' }}>{item.title}</h2>
+              <div key={item.id} data-pdf-section style={{ padding: '40px', border: '1px solid rgba(124, 106, 90, 0.1)', borderRadius: '32px' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '20px', marginBottom: '30px' }}>
+                  <span style={{ fontSize: '48px', fontWeight: '300', color: 'rgba(124, 106, 90, 0.2)' }}>{String(item.id).padStart(2, '0')}</span>
+                  <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#3a3a3a' }}>{item.title}</h2>
                 </div>
                 
                 {item.imageUrl && (
-                  <div style={{ marginBottom: '48px', textAlign: 'center' }}>
+                  <div style={{ marginBottom: '20px', textAlign: 'center' }}>
                     <img 
                       src={item.imageUrl} 
-                      style={{ maxWidth: '500px', width: '100%', height: 'auto', borderRadius: '32px' }} 
+                      style={{ maxWidth: '180px', width: '100%', height: 'auto', borderRadius: '24px' }} 
                       referrerPolicy="no-referrer"
                     />
                   </div>
                 )}
 
                 {currentGuide.type === 'journal' ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(124, 106, 90, 0.1)', paddingBottom: '20px' }}>
-                      <span style={{ fontSize: '18px', color: 'rgba(124, 106, 90, 0.6)' }}>Fecha: ____ / ____ / ______</span>
-                      <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#7c6a5a' }}>DÍA {item.day}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(124, 106, 90, 0.1)', paddingBottom: '16px' }}>
+                      <span style={{ fontSize: '20px', color: 'rgba(124, 106, 90, 0.6)' }}>Fecha: ____ / ____ / ______</span>
+                      <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#7c6a5a' }}>DÍA {item.day}</span>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
                       {item.sections.map((section: any, idx: number) => (
-                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                          <h4 style={{ fontSize: '16px', fontWeight: 'bold', textTransform: 'uppercase', color: '#7c6a5a' }}>{section.label}</h4>
+                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <h4 style={{ fontSize: '20px', fontWeight: 'bold', textTransform: 'uppercase', color: '#7c6a5a' }}>{section.label}</h4>
                           {section.type === 'list' ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                               {Array.from({ length: section.count || 1 }).map((_, i) => (
-                                <div key={i} style={{ height: '40px', borderBottom: '1px solid #f4f1ea', display: 'flex', alignItems: 'center' }}>
-                                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'rgba(124, 106, 90, 0.2)', marginRight: '16px' }}></div>
+                                <div key={i} style={{ height: '44px', borderBottom: '1px solid #f4f1ea', display: 'flex', alignItems: 'center' }}>
+                                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'rgba(124, 106, 90, 0.2)', marginRight: '12px' }}></div>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div style={{ height: section.type === 'drawing' ? '200px' : '120px', backgroundColor: '#fcfbf9', border: '1px dashed rgba(124, 106, 90, 0.1)', borderRadius: '24px', padding: '24px' }}>
-                              <span style={{ fontSize: '16px', color: 'rgba(124, 106, 90, 0.3)', fontStyle: 'italic' }}>{section.placeholder}</span>
+                            <div style={{ height: section.type === 'drawing' ? '150px' : '100px', backgroundColor: '#fcfbf9', border: '1px solid rgba(124, 106, 90, 0.1)', borderRadius: '20px', padding: '16px' }}>
+                              <span style={{ fontSize: '20px', color: 'rgba(124, 106, 90, 0.4)', fontStyle: 'italic' }}>{section.placeholder}</span>
                             </div>
                           )}
                         </div>
                       ))}
                       {item.closingQuote && (
-                        <div style={{ marginTop: '32px', paddingTop: '32px', borderTop: '1px solid rgba(124, 106, 90, 0.1)', textAlign: 'center' }}>
+                        <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid rgba(124, 106, 90, 0.1)', textAlign: 'center' }}>
                           <p style={{ fontSize: '24px', fontStyle: 'italic', color: '#7c6a5a' }}>{item.closingQuote}</p>
                         </div>
                       )}
@@ -912,30 +927,30 @@ export default function App() {
                   </div>
                 ) : currentGuide.type === 'meditation' ? (
                   <>
-                    <div style={{ marginBottom: '48px', fontStyle: 'italic', color: '#7c6a5a', fontSize: '28px' }}>
+                    <div style={{ marginBottom: '32px', fontStyle: 'italic', color: '#7c6a5a', fontSize: '24px' }}>
                       "{item.intention}"
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', fontSize: '22px', lineHeight: '1.8', opacity: '0.9' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', fontSize: '20px', lineHeight: '1.8', opacity: '0.9' }}>
                       {item.content.map((p: string, i: number) => <p key={i}>{p}</p>)}
                     </div>
                   </>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
-                    <div style={{ fontStyle: 'italic', color: '#7c6a5a', fontSize: '24px' }}>"{item.whenToUse}"</div>
-                    <div style={{ fontSize: '20px', lineHeight: '1.8' }}>
-                      <h4 style={{ fontWeight: 'bold', marginBottom: '12px' }}>Preparación</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                    <div style={{ fontStyle: 'italic', color: '#7c6a5a', fontSize: '22px' }}>"{item.whenToUse}"</div>
+                    <div style={{ fontSize: '18px', lineHeight: '1.6' }}>
+                      <h4 style={{ fontWeight: 'bold', marginBottom: '8px' }}>Preparación</h4>
                       <p>{item.preparation}</p>
                     </div>
                     <div>
-                      <h4 style={{ fontWeight: 'bold', marginBottom: '24px' }}>Punto de Karate</h4>
-                      {item.karatePoint.map((p: string, i: number) => <p key={i} style={{ fontStyle: 'italic', fontSize: '28px', marginBottom: '12px' }}>{p}</p>)}
+                      <h4 style={{ fontWeight: 'bold', marginBottom: '16px' }}>Punto de Karate</h4>
+                      {item.karatePoint.map((p: string, i: number) => <p key={i} style={{ fontStyle: 'italic', fontSize: '22px', marginBottom: '8px' }}>{p}</p>)}
                     </div>
                     <div>
-                      <h4 style={{ fontWeight: 'bold', marginBottom: '24px' }}>Secuencia</h4>
+                      <h4 style={{ fontWeight: 'bold', marginBottom: '16px' }}>Secuencia</h4>
                       {item.sequence.map((s: any, i: number) => (
-                        <div key={i} style={{ display: 'flex', gap: '24px', marginBottom: '20px' }}>
+                        <div key={i} style={{ display: 'flex', gap: '16px', marginBottom: '12px' }}>
                           <span style={{ width: '120px', fontSize: '12px', fontWeight: 'bold', opacity: '0.4' }}>{s.point}</span>
-                          <p style={{ fontStyle: 'italic', fontSize: '22px' }}>{s.phrase}</p>
+                          <p style={{ fontStyle: 'italic', fontSize: '20px' }}>{s.phrase}</p>
                         </div>
                       ))}
                     </div>
@@ -944,7 +959,7 @@ export default function App() {
               </div>
             ))}
 
-            <div style={{ padding: '80px 60px', textAlign: 'center' }}>
+            <div data-pdf-section style={{ padding: '80px 60px', textAlign: 'center' }}>
               {currentGuide.footer.imageUrl && (
                 <div style={{ marginBottom: '48px', textAlign: 'center' }}>
                   <img 

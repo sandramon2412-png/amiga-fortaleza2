@@ -101,7 +101,8 @@ export const guides: Guide[] = [
         "No hay reglas. Solo tú, tu respiración y estas palabras."
       ],
       closing: "Con amor,",
-      author: "Amiga Fortaleza"
+      author: "Amiga Fortaleza",
+      imageUrl: "https://i.imgur.com/qFG8Q03.jpeg"
     },
     items: [
       {
@@ -480,12 +481,13 @@ export const guides: Guide[] = [
       title: "Querida,",
       content: [
         "¿Cuántas veces has llegado al final del día sintiendo que viviste en piloto automático? ¿Que hiciste, hiciste, hiciste… pero no estuviste presente?",
-        "La vida moderna nos empuja a la prisa, a la productividad, a hacer más con menos tiempo. Y en esa carrera, lo primero que perdemos es la conexión con nosotras mismas.",
+        "La vida moderna nos empuja a la prisa, a la productividad, a hacer más con menos tiempo. En esa carrera, lo primero que perdemos es la conexión con nosotras mismas.",
         "Los rituales no son pérdida de tiempo. Son un acto de rebeldía amorosa. Son pequeñas pausas sagradas que te recuerdan que existes, que sientes, que mereces cuidado.",
         "Los 5 rituales que encontrarás aquí están diseñados para durar entre 5 y 15 minutos. No necesitas preparación especial, ni herramientas complicadas. Solo necesitas intención y permiso para detenerte."
       ],
       closing: "Con amor,",
-      author: "Amiga Fortaleza"
+      author: "Amiga Fortaleza",
+      imageUrl: "https://i.imgur.com/1kn0mAF.jpeg"
     },
     items: [
       {
@@ -595,7 +597,8 @@ export const guides: Guide[] = [
         "Que estas palabras te acompañen, te sostengan y te recuerden lo poderosa que eres."
       ],
       closing: "Con amor,",
-      author: "Amiga Fortaleza"
+      author: "Amiga Fortaleza",
+      imageUrl: "https://i.imgur.com/3jyFVCt.jpeg"
     },
     affirmationCategories: [
       {
@@ -723,7 +726,8 @@ export const guides: Guide[] = [
         "Que estas páginas sean el lugar donde tu corazón aprende a mirar con otros ojos."
       ],
       closing: "Con amor,",
-      author: "Amiga Fortaleza"
+      author: "Amiga Fortaleza",
+      imageUrl: "https://i.imgur.com/6a3XrUb.jpeg"
     },
     howToUse: {
       title: "Cómo usar estas plantillas",
